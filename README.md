@@ -72,6 +72,8 @@ targets:
 
 - On pull requests, `gh-build-size` resolves a merge base, re-measures the base
   revision, and posts a single managed PR comment.
+- When the publish branch does not have a baseline yet, `gh-build-size` treats
+  the target as an initial measurement and still comments on the pull request.
 - On pushes to the default branch, `gh-build-size` can publish `summary.json`,
   per-target JSON files, and SVG badges to a dedicated branch.
 - Measurements are aggregated per target across all matched files.

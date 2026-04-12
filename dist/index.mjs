@@ -32521,6 +32521,14 @@ const DEFAULT_COMMENT_TEMPLATE = `{{{marker}}}
 | {{{label}}} | {{compression}} | {{base}} | {{current}} | {{delta}} |
 {{/rows}}
 
+{{#has_first_targets}}
+### Initial measurement
+{{#first_targets}}
+- {{label}} has no published baseline yet.
+{{/first_targets}}
+
+{{/has_first_targets}}
+
 {{#has_violations}}
 ### Violations
 {{#violations}}
@@ -32607,13 +32615,14 @@ function buildViolations(target, current, base) {
 	}
 	return violations;
 }
-function evaluateTargets(config, currentSnapshots, baseSnapshots, touchedFilesByTarget, isPullRequest) {
+function evaluateTargets(config, currentSnapshots, baseSnapshots, touchedFilesByTarget, publishedTargetIds, isPullRequest) {
 	return config.targets.map((target) => {
 		const current = currentSnapshots.find((item) => item.id === target.id);
 		if (!current) throw new Error(`Missing current snapshot for target "${target.id}"`);
 		const base = baseSnapshots.find((item) => item.id === target.id);
 		const touchedFiles = touchedFilesByTarget.get(target.id) ?? [];
-		const commentable = !isPullRequest || touchedFiles.length > 0;
+		const baselineMissing = isPullRequest && publishedTargetIds !== null && !publishedTargetIds.has(target.id);
+		const commentable = !isPullRequest || baselineMissing || touchedFiles.length > 0;
 		const violations = buildViolations(target, current, base);
 		const sizes = {
 			raw: {
@@ -32642,6 +32651,7 @@ function evaluateTargets(config, currentSnapshots, baseSnapshots, touchedFilesBy
 			label: target.label,
 			files: current.files,
 			touched_files: touchedFiles,
+			baseline_missing: baselineMissing,
 			commentable,
 			sizes,
 			violations,
@@ -36722,11 +36732,14 @@ function renderComment(summary, template, marker) {
 		compression: violation.compression,
 		message: violation.message
 	})));
+	const firstTargets = summary.targets.filter((target) => target.commentable && target.baseline_missing).map((target) => ({ label: target.label }));
 	return mustache.render(template, {
 		marker,
 		base_header: summary.base_label,
 		head_header: summary.head_label,
 		rows,
+		first_targets: firstTargets,
+		has_first_targets: firstTargets.length > 0,
 		violations,
 		has_violations: violations.length > 0
 	});
@@ -39477,10 +39490,15 @@ async function run() {
 	let headLabel = defaultBranch;
 	let baseSnapshots = [];
 	let changedFiles = [];
+	let publishedTargetIds = null;
 	if (import_github.context.eventName === "pull_request") {
 		baseReference = await resolvePullRequestBaseReference(defaultBranch);
 		changedFiles = await listChangedFiles(baseReference);
 		baseSnapshots = await measureRevisionTargets(baseReference, config.targets, createGitRevisionReader());
+		if (config.publish.enabled) {
+			const publishedSummary = await fetchPublishedSummary(octokit, config.publish.branch, path.posix.join(config.publish.directory, config.publish.summary_filename));
+			publishedTargetIds = new Set(publishedSummary?.targets.map((target) => target.id) ?? []);
+		}
 		headLabel = `#${import_github.context.payload.pull_request?.number ?? "pr"}`;
 	} else if (import_github.context.eventName === "push" && import_github.context.ref === `refs/heads/${defaultBranch}` && config.publish.enabled) {
 		const publishedSummary = await fetchPublishedSummary(octokit, config.publish.branch, path.posix.join(config.publish.directory, config.publish.summary_filename));
@@ -39497,7 +39515,7 @@ async function run() {
 		})) ?? [];
 	}
 	const touchedFilesByTarget = new Map(config.targets.map((target) => [target.id, touchedFilesForTarget(target, changedFiles)]).filter(([, touchedFiles]) => touchedFiles.length > 0));
-	const evaluatedTargets = evaluateTargets(config, currentSnapshots, baseSnapshots, touchedFilesByTarget, import_github.context.eventName === "pull_request");
+	const evaluatedTargets = evaluateTargets(config, currentSnapshots, baseSnapshots, touchedFilesByTarget, publishedTargetIds, import_github.context.eventName === "pull_request");
 	const publishBranch = import_github.context.eventName === "push" && import_github.context.ref === `refs/heads/${defaultBranch}` && config.publish.enabled ? config.publish.branch : null;
 	const summary = attachOutputPaths(buildSummary(defaultBranch, publishBranch, baseLabel, baseReference, headLabel, headReference, evaluatedTargets), inputs.outputDir);
 	await writeOutputFiles(inputs.outputDir, summary, evaluatedTargets, currentSnapshots, config);

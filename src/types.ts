@@ -96,6 +96,7 @@ export interface TargetStatus {
   label: string
   files: string[]
   touched_files: string[]
+  baseline_missing: boolean
   commentable: boolean
   sizes: Record<Compression, SizeValueStatus>
   violations: SizeViolation[]

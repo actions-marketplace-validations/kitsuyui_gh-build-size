@@ -20,6 +20,7 @@ const summary: SummaryStatus = {
       label: 'web',
       files: ['dist/app.js'],
       touched_files: ['dist/app.js'],
+      baseline_missing: false,
       commentable: true,
       sizes: {
         raw: { current: 120, base: 100, delta: 20 },
@@ -66,5 +67,22 @@ describe('comment', () => {
       commentId: 1,
       body: '<!-- gh-build-size:default -->\nnew',
     })
+  })
+
+  test('renders initial measurement note for first targets', () => {
+    const body = renderComment(
+      {
+        ...summary,
+        targets: summary.targets.map((target) => ({
+          ...target,
+          baseline_missing: true,
+          touched_files: [],
+        })),
+      },
+      DEFAULT_COMMENT_TEMPLATE,
+      buildMarker('default'),
+    )
+    expect(body).toContain('### Initial measurement')
+    expect(body).toContain('web has no published baseline yet.')
   })
 })

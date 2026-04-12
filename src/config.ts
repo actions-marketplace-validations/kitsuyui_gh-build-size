@@ -145,6 +145,14 @@ export const DEFAULT_COMMENT_TEMPLATE = `{{{marker}}}
 | {{{label}}} | {{compression}} | {{base}} | {{current}} | {{delta}} |
 {{/rows}}
 
+{{#has_first_targets}}
+### Initial measurement
+{{#first_targets}}
+- {{label}} has no published baseline yet.
+{{/first_targets}}
+
+{{/has_first_targets}}
+
 {{#has_violations}}
 ### Violations
 {{#violations}}
