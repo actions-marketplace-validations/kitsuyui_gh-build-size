@@ -85,6 +85,23 @@ branch:
 - `badges/<target>.svg`
 - `targets/<target>.json`
 
+## Dogfooding
+
+This repository runs `gh-build-size` on itself. The workflow in
+`.github/workflows/gh-build-size.yml` lints, tests, rebuilds `dist/`, and then
+invokes the local action with `uses: ./`.
+
+The default dogfooding config tracks both an aggregate target and narrower
+targets:
+
+- `total`: all committed `dist/` artifacts
+- `runtime`: the shipped `.mjs` runtime bundle
+- `sourcemaps`: generated `.map` files
+- `types`: generated `.d.mts` files
+
+That gives one top-level "total dist" signal alongside more focused targets for
+reviewing regressions.
+
 ## Notes
 
 - Run the build step before `gh-build-size`.
