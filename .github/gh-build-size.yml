@@ -19,7 +19,7 @@ targets:
     compressions: [raw, gzip, brotli]
     limits:
       gzip:
-        max_bytes: 12000
+        max_bytes: 400000
         fail: true
     ratchet:
       gzip:
