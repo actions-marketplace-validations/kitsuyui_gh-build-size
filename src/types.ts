@@ -39,6 +39,19 @@ export interface TargetConfig {
   badge?: BadgeConfig
 }
 
+export interface WorkspacePackagesResolverConfig {
+  type: 'workspace-packages'
+  root: string
+  dist_dir?: string
+  include?: string[]
+  exclude?: string[]
+  compressions?: Compression[]
+  limits?: Partial<Record<Compression, ThresholdConfig>>
+  ratchet?: Partial<Record<Compression, RatchetConfig>>
+  badge?: BadgeConfig
+  id_prefix?: string
+}
+
 export interface PublishConfig {
   enabled?: boolean
   branch?: string
@@ -59,7 +72,8 @@ export interface ActionConfig {
   default_branch?: string
   comment?: CommentConfig
   publish?: PublishConfig
-  targets: TargetConfig[]
+  targets?: TargetConfig[]
+  resolvers?: WorkspacePackagesResolverConfig[]
 }
 
 export interface ActionInputs {
@@ -96,6 +110,7 @@ export interface TargetStatus {
   label: string
   files: string[]
   touched_files: string[]
+  baseline_missing: boolean
   commentable: boolean
   sizes: Record<Compression, SizeValueStatus>
   violations: SizeViolation[]

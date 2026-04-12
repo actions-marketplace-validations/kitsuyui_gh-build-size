@@ -8,6 +8,7 @@ const target: TargetStatus = {
   label: 'web',
   files: ['dist/app.js'],
   touched_files: ['dist/app.js'],
+  baseline_missing: false,
   commentable: true,
   sizes: {
     raw: { current: 120, base: 100, delta: 20 },

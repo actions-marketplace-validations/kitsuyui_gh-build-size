@@ -53,12 +53,19 @@ export function renderComment(
       message: violation.message,
     })),
   )
+  const firstTargets = summary.targets
+    .filter((target) => target.commentable && target.baseline_missing)
+    .map((target) => ({
+      label: target.label,
+    }))
 
   return Mustache.render(template, {
     marker,
     base_header: summary.base_label,
     head_header: summary.head_label,
     rows,
+    first_targets: firstTargets,
+    has_first_targets: firstTargets.length > 0,
     violations,
     has_violations: violations.length > 0,
   })

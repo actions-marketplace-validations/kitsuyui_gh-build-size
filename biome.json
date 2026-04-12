@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
   "files": {
-    "includes": ["**", "!dist", "!node_modules", "!.gh-build-size"]
+    "includes": ["**", "!coverage", "!dist", "!node_modules", "!.gh-build-size"]
   },
   "formatter": {
     "enabled": true,

@@ -67,7 +67,7 @@ function buildSummary(
 async function run(): Promise<void> {
   const inputs = getInputs()
   const actionConfig = await loadConfig(inputs.configPath)
-  const config = normalizeConfig(actionConfig, inputs)
+  const config = await normalizeConfig(actionConfig, inputs)
   const defaultBranch = await resolveDefaultBranch(config.defaultBranch)
   const octokit = github.getOctokit(inputs.githubToken)
   const headReference = await currentHeadReference()
@@ -78,6 +78,7 @@ async function run(): Promise<void> {
   let headLabel = defaultBranch
   let baseSnapshots: Awaited<ReturnType<typeof measureWorkspaceTargets>> = []
   let changedFiles: string[] = []
+  let publishedTargetIds: Set<string> | null = null
 
   if (github.context.eventName === 'pull_request') {
     baseReference = await resolvePullRequestBaseReference(defaultBranch)
@@ -87,6 +88,19 @@ async function run(): Promise<void> {
       config.targets,
       createGitRevisionReader(),
     )
+    if (config.publish.enabled) {
+      const publishedSummary = await fetchPublishedSummary(
+        octokit,
+        config.publish.branch,
+        path.posix.join(
+          config.publish.directory,
+          config.publish.summary_filename,
+        ),
+      )
+      publishedTargetIds = new Set(
+        publishedSummary?.targets.map((target) => target.id) ?? [],
+      )
+    }
     headLabel = `#${github.context.payload.pull_request?.number ?? 'pr'}`
   } else if (
     github.context.eventName === 'push' &&
@@ -129,6 +143,7 @@ async function run(): Promise<void> {
     currentSnapshots,
     baseSnapshots,
     touchedFilesByTarget,
+    publishedTargetIds,
     github.context.eventName === 'pull_request',
   )
   const publishBranch =

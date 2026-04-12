@@ -50,6 +50,7 @@ export function evaluateTargets(
   currentSnapshots: TargetSnapshot[],
   baseSnapshots: TargetSnapshot[],
   touchedFilesByTarget: Map<string, string[]>,
+  publishedTargetIds: Set<string> | null,
   isPullRequest: boolean,
 ): TargetStatus[] {
   return config.targets.map((target) => {
@@ -59,7 +60,12 @@ export function evaluateTargets(
     }
     const base = baseSnapshots.find((item) => item.id === target.id)
     const touchedFiles = touchedFilesByTarget.get(target.id) ?? []
-    const commentable = !isPullRequest || touchedFiles.length > 0
+    const baselineMissing =
+      isPullRequest &&
+      publishedTargetIds !== null &&
+      !publishedTargetIds.has(target.id)
+    const commentable =
+      !isPullRequest || baselineMissing || touchedFiles.length > 0
     const violations = buildViolations(target, current, base)
     const sizes = {
       raw: {
@@ -103,6 +109,7 @@ export function evaluateTargets(
       label: target.label,
       files: current.files,
       touched_files: touchedFiles,
+      baseline_missing: baselineMissing,
       commentable,
       sizes,
       violations,
