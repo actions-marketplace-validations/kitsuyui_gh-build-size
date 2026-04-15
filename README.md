@@ -2,17 +2,34 @@
 
 [![Build Size Report](https://raw.githubusercontent.com/kitsuyui/gh-build-size/gh-build-size-assets/badges/total.svg)](https://github.com/kitsuyui/gh-build-size/blob/gh-build-size-assets/report.md)
 
-`gh-build-size` is a GitHub Action for measuring built artifact sizes on pull
-requests and on the default branch. It is designed to work without SaaS: the
-action compares the current build against a Git baseline, posts a managed PR
-comment, and can publish JSON plus SVG badges to a dedicated branch.
+`gh-build-size` is a GitHub Action that measures the size of your built
+artifacts and reports regressions in pull requests and on your default branch.
 
-The first version focuses on repository-owned build outputs such as
-`dist/**/*.js`, `dist/**/*.css`, `public/**/*.wasm`, or any other generated
-files that are checked after a build step. It measures `raw`, `gzip`, and
-`brotli` sizes per configured target.
+Use it when you want to:
+
+- see whether a pull request makes your built output larger or smaller
+- fail CI when a bundle exceeds a size limit
+- keep a published record of the latest measured sizes without relying on SaaS
+
+It works well for outputs such as `dist/**/*.js`, `dist/**/*.css`,
+`public/**/*.wasm`, or any other generated files that exist after your build
+step.
+
+## What you get
+
+After your build runs, `gh-build-size` can:
+
+- compare the current build against a Git baseline
+- post one managed comment on the pull request
+- publish `summary.json`, `files.json`, `report.md`, per-target JSON, and SVG
+  badges to a dedicated branch
+- enforce size budgets and ratchets such as "do not increase gzip size"
+
+It measures `raw`, `gzip`, and `brotli` sizes per target.
 
 ## Quick start
+
+Add the action to a workflow that already builds your project:
 
 ```yaml
 name: gh-build-size
@@ -42,7 +59,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The action reads `.github/gh-build-size.yml` by default.
+Then add `.github/gh-build-size.yml`:
 
 ```yaml
 version: 1
@@ -70,7 +87,48 @@ targets:
       compression: gzip
 ```
 
-For JavaScript monorepos, `gh-build-size` can also expand package targets
+That setup gives you:
+
+- a pull request comment showing the size delta for the `web` target
+- a failing workflow if gzip size goes above `180000` bytes
+- a published badge and report on `gh-build-size-assets`
+
+## How it behaves
+
+On pull requests:
+
+- it resolves a merge base
+- rebuilds the base revision for comparison
+- posts or updates one managed pull request comment
+
+On pushes to the default branch:
+
+- it writes the latest measurement outputs to the publish branch
+- it updates badges and `report.md` for the newest baseline
+
+If there is no previously published baseline yet, `gh-build-size` still treats
+the run as an initial measurement and can comment on the pull request.
+
+## Configuration model
+
+Each target represents one reported unit such as a bundle, package, or artifact
+group.
+
+Useful target fields:
+
+- `files`: glob patterns to include in the target
+- `exclude`: files to ignore from that target
+- `compressions`: any of `raw`, `gzip`, `brotli`
+- `limits`: absolute size thresholds
+- `ratchet`: relative rules such as `no_increase`
+- `badge`: how to render the published SVG badge
+
+The durable record is file-level data. Pull request comments, target summaries,
+and badges are views generated from those measured file snapshots.
+
+## JavaScript Monorepos
+
+For JavaScript monorepos, `gh-build-size` can expand package targets
 automatically:
 
 ```yaml
@@ -93,21 +151,8 @@ resolvers:
       compression: gzip
 ```
 
-That configuration produces one target per workspace package such as
-`bits128`, `cipher`, and `word-stats`, without listing every package manually.
-
-## Behavior
-
-- On pull requests, `gh-build-size` resolves a merge base, re-measures the base
-  revision, and posts a single managed PR comment.
-- When the publish branch does not have a baseline yet, `gh-build-size` treats
-  the target as an initial measurement and still comments on the pull request.
-- On pushes to the default branch, `gh-build-size` can publish `summary.json`,
-  `files.json`, `report.md`, per-target JSON files, and SVG badges to a
-  dedicated branch.
-- Measurements are aggregated per target across all matched files.
-- The durable record is file-level. PR comments and target summaries are just
-  views over the recorded file snapshots.
+That configuration produces one target per workspace package without listing
+every package manually, while still keeping one aggregate `total` target.
 
 ## Published files
 
@@ -120,11 +165,15 @@ branch:
 - `badges/<target>.svg`
 - `targets/<target>.json`
 
-`summary.json` is a compact summary for comments and quick inspection.
-`files.json` and `targets/<target>.json` keep the original measured file names
-plus size data, so later tools can regroup files differently or generate richer
-reports without rerunning old builds. `report.md` is the simplest built-in
-view over the latest file-level snapshot on GitHub.
+`summary.json` is the compact view for quick inspection. `files.json` and
+`targets/<target>.json` preserve measured file names plus size data so later
+tools can regroup or re-render the snapshot without rerunning an old build.
+
+## Requirements
+
+- run your build step before `gh-build-size`
+- use `fetch-depth: 0` so the action can resolve a stable merge base
+- commit built `dist/` files if your GitHub Action runtime depends on them
 
 ## Dogfooding
 
@@ -132,31 +181,19 @@ This repository runs `gh-build-size` on itself. The workflow in
 `.github/workflows/gh-build-size.yml` lints, tests, rebuilds `dist/`, and then
 invokes the local action with `uses: ./`.
 
-The default dogfooding config tracks both an aggregate target and narrower
-targets:
+The default dogfooding config tracks:
 
 - `total`: all committed `dist/` artifacts
 - `runtime`: the shipped `.mjs` runtime bundle
 - `sourcemaps`: generated `.map` files
 - `types`: generated `.d.mts` files
 
-That gives one top-level "total dist" signal alongside more focused targets for
-reviewing regressions.
-
 ## Standard CI
 
-This repository also includes a small standard CI set modeled after
-`gh-counter`:
+This repository also includes a small standard CI set:
 
 - `.github/workflows/test.yml`: lint, test, and build on pull requests and on
   `main`
 - `.github/workflows/octocov.yml`: publish coverage and code-to-test ratio with
   `octocov`
 - `.github/workflows/spellcheck.yml`: run `typos` on pull requests
-
-## Notes
-
-- Run the build step before `gh-build-size`.
-- Use `fetch-depth: 0` so the action can resolve a stable merge base.
-- This repository is intended to commit built `dist/` files for the action
-  runtime, similar to other JavaScript actions.
